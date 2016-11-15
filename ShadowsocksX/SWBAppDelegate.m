@@ -288,6 +288,9 @@ void onPACChange(
 - (void)showQRCode {
     NSURL *qrCodeURL = [ShadowsocksRunner generateSSURL];
     if (qrCodeURL) {
+        if (qrCodeWindowController) {
+            [qrCodeWindowController close];
+        }
         qrCodeWindowController = [[SWBQRCodeWindowController alloc] initWithWindowNibName:@"QRCodeWindow"];
         qrCodeWindowController.qrCode = [qrCodeURL absoluteString];
         [qrCodeWindowController showWindow:self];
