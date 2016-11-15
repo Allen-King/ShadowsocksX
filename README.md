@@ -1,17 +1,14 @@
-Shadowsocks for iOS and OSX
+Shadowsocks GUI for OSX
 ===========================
-[![Build Status](https://travis-ci.org/shadowsocks/shadowsocks-iOS.svg?branch=master)](https://travis-ci.org/shadowsocks/shadowsocks-iOS)
-
-
-iOS
------
-[![iOS Icon](https://raw.github.com/shadowsocks/shadowsocks-iOS/master/ios_128.png)](https://github.com/shadowsocks/shadowsocks-iOS/wiki/Help)  
-[iOS Version](https://github.com/shadowsocks/shadowsocks-iOS/wiki/Help)
-
-OSX
------
-[![OSX Icon](https://raw.github.com/shadowsocks/shadowsocks-iOS/master/osx_128.png)](https://github.com/shadowsocks/shadowsocks-iOS/wiki/Shadowsocks-for-OSX-Help)  
+[![OSX Icon](https://raw.githubusercontent.com/RobertYan/ShadowsocksX/develop/osx_128.png)](https://github.com/shadowsocks/shadowsocks-iOS/wiki/Shadowsocks-for-OSX-Help)  
 [OSX Version](https://github.com/shadowsocks/shadowsocks-iOS/wiki/Shadowsocks-for-OSX-Help)
+
+How to Build
+-----
+
+- Install Pods;
+- Update git modules;
+- Open Xcode and build.
 
 License
 -------
@@ -20,8 +17,9 @@ The project is released under the terms of [GPLv3](https://raw.github.com/shadow
 Bugs and Issues
 ----------------
 
-Please visit [issue tracker](https://github.com/shadowsocks/shadowsocks-iOS/issues?state=open)
+Please visit [issue tracker](https://github.com/RobertYan/ShadowsocksX/issues?state=open)
 
 Mailing list: http://groups.google.com/group/shadowsocks
 
 Also see [troubleshooting](https://github.com/clowwindy/shadowsocks/wiki/Troubleshooting)
+

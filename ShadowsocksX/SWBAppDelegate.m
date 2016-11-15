@@ -11,10 +11,13 @@
 #import "SWBQRCodeWindowController.h"
 #import "SWBAppDelegate.h"
 #import "GCDWebServer.h"
+#import "GCDWebServerDataResponse.h"
 #import "ShadowsocksRunner.h"
 #import "ProfileManager.h"
 #import "AFNetworking.h"
+#import <ZXingObjC/ZXingObjC.h>
 
+#define kShadowsocksGfwlistURLKey @"ShadowsocksGfwlistURL"
 #define kShadowsocksIsRunningKey @"ShadowsocksIsRunning"
 #define kShadowsocksRunningModeKey @"ShadowsocksMode"
 #define kShadowsocksHelper @"/Library/Application Support/ShadowsocksX/shadowsocks_sysconf"
@@ -36,7 +39,7 @@
     NSString *configPath;
     NSString *PACPath;
     NSString *userRulePath;
-    AFHTTPRequestOperationManager *manager;
+    AFHTTPSessionManager *manager;
 }
 
 static SWBAppDelegate *appDelegate;
@@ -59,9 +62,9 @@ static SWBAppDelegate *appDelegate;
 
     [webServer startWithPort:8090 bonjourName:@"webserver"];
 
-    manager = [AFHTTPRequestOperationManager manager];
+    manager = [AFHTTPSessionManager manager];
     manager.responseSerializer = [AFHTTPResponseSerializer serializer];
-
+    
     self.item = [[NSStatusBar systemStatusBar] statusItemWithLength:20];
     NSImage *image = [NSImage imageNamed:@"menu_icon"];
     [image setTemplate:YES];
@@ -157,12 +160,12 @@ static SWBAppDelegate *appDelegate;
     Configuration *configuration = [ProfileManager configuration];
     [serversMenu removeAllItems];
     int i = 0;
-    NSMenuItem *publicItem = [[NSMenuItem alloc] initWithTitle:_L(Public Server) action:@selector(chooseServer:) keyEquivalent:@""];
-    publicItem.tag = -1;
-    if (-1 == configuration.current) {
-        [publicItem setState:1];
-    }
-    [serversMenu addItem:publicItem];
+    //    NSMenuItem *publicItem = [[NSMenuItem alloc] initWithTitle:_L(Public Server) action:@selector(chooseServer:) keyEquivalent:@""];
+    //    publicItem.tag = -1;
+    //    if (-1 == configuration.current) {
+    //        [publicItem setState:1];
+    //    }
+    //    [serversMenu addItem:publicItem];
     for (Profile *profile in configuration.profiles) {
         NSString *title;
         if (profile.remarks.length) {
@@ -295,6 +298,123 @@ void onPACChange(
     }
 }
 
+// TODO
+- (void)scanQRCode {
+    
+        NSDictionary* screenDictionary = [[NSScreen mainScreen] deviceDescription];
+        NSNumber* screenID = [screenDictionary objectForKey:@"NSScreenNumber"];
+        CGDirectDisplayID displayID = [screenID unsignedIntValue];
+        
+        // Get a composite image of the screen
+        CGImageRef capturedImage = CGDisplayCreateImage(displayID);
+        
+        if(CGImageGetWidth(capturedImage) <= 1)
+        {
+            CGImageRelease(capturedImage);
+            NSAlert *alert = [[NSAlert alloc] init];
+            alert.messageText = @"Get Image failed!";
+            [alert runModal];
+        }
+    
+        [self qrWithImage:capturedImage];
+        CGImageRelease(capturedImage);
+    
+}
+
+
+- (void)qrWithImage:(CGImageRef)imageRef {
+//    CGImageRef imageToDecode;  // Given a CGImage in which we are looking for barcodes
+    
+    ZXLuminanceSource *source = [[ZXCGImageLuminanceSource alloc] initWithCGImage:imageRef];
+    ZXBinaryBitmap *bitmap = [ZXBinaryBitmap binaryBitmapWithBinarizer:[ZXHybridBinarizer binarizerWithSource:source]];
+    
+    NSError *error = nil;
+    
+    // There are a number of hints we can give to the reader, including
+    // possible formats, allowed lengths, and the string encoding.
+    ZXDecodeHints *hints = [ZXDecodeHints hints];
+    
+    ZXMultiFormatReader *reader = [ZXMultiFormatReader reader];
+    ZXResult *result = [reader decode:bitmap
+                                hints:hints
+                                error:&error];
+    if (result) {
+        // The coded result as a string. The raw data can be accessed with
+        // result.rawBytes and result.length.
+        NSString *contents = result.text;
+        
+//        [ShadowsocksRunner openSSURL:[NSURL URLWithString:contents]];
+        
+        if ([contents hasPrefix:@"ss://"]) {
+            
+            if (contents.length > 5) {
+                NSString *newResult = [contents substringFromIndex:5];
+                NSData *decodedData = [[NSData alloc] initWithBase64EncodedString:newResult options:0];
+                NSString *decodedString = [[NSString alloc] initWithData:decodedData encoding:NSUTF8StringEncoding];
+                
+                NSRange range = [decodedString rangeOfString:@":"];
+                NSString *encryption = [decodedString substringToIndex:range.location];
+                
+                
+                decodedString = [decodedString substringFromIndex:range.location + range.length];
+                
+                
+                range = [decodedString rangeOfString:@"@" options:NSBackwardsSearch];
+                NSString *password = [decodedString substringToIndex:range.location];
+                
+                
+                decodedString = [decodedString substringFromIndex:range.location + range.length];
+                
+                
+                range = [decodedString rangeOfString:@":" options:NSBackwardsSearch];
+                NSString *port = [decodedString substringFromIndex:range.length + range.location];
+                
+                
+                decodedString = [decodedString substringToIndex:range.location];
+                
+                
+                NSString *ip = decodedString;
+                
+                
+                Profile *profile = [[Profile alloc] init];
+                profile.server = ip;
+                profile.serverPort = [port integerValue];
+                profile.method = encryption;
+                profile.password = password;
+                
+                
+                
+                Configuration *config = [ProfileManager configuration];
+                NSMutableArray *profiles = [NSMutableArray arrayWithArray:config.profiles];
+                [profiles addObject:profile];
+                config.profiles = profiles.copy;
+                
+                [ProfileManager saveConfiguration:config];
+                
+                [ShadowsocksRunner reloadConfig];
+                
+                [self configurationDidChange];
+
+            }
+        
+        } else {
+            
+            NSAlert *alert = [[NSAlert alloc] init];
+            alert.messageText = NSLocalizedString(@"Invalid QR Code", nil);
+            [alert runModal];
+            
+        }
+        
+    } else {
+        // Use error to determine why we didn't get a result, such as a barcode
+        // not being found, an invalid checksum, or a format inconsistency.
+        NSAlert *alert = [[NSAlert alloc] init];
+        alert.messageText = NSLocalizedString(@"No QR Code Found", nil);
+        [alert runModal];
+    }
+}
+
+
 - (void)showLogs {
     [[NSWorkspace sharedWorkspace] launchApplication:@"/Applications/Utilities/Console.app"];
 }
@@ -408,7 +528,16 @@ void onPACChange(
     }
     return @"auto";
 }
-
+- (NSString *)gfwlistURLString {
+    NSString *str = [[NSUserDefaults standardUserDefaults] stringForKey:kShadowsocksGfwlistURLKey];
+    if (str) {
+        return str;
+    }
+    NSString *gURLString = @"https://raw.githubusercontent.com/gfwlist/gfwlist/master/gfwlist.txt";
+    [[NSUserDefaults standardUserDefaults] setObject:gURLString forKey:kShadowsocksGfwlistURLKey];
+    [[NSUserDefaults standardUserDefaults] synchronize];
+    return gURLString;
+}
 - (void)toggleSystemProxy:(BOOL)useProxy {
     isRunning = useProxy;
     
@@ -460,11 +589,12 @@ void onPACChange(
 }
 
 - (void)updatePACFromGFWList {
-    [manager GET:@"https://autoproxy-gfwlist.googlecode.com/svn/trunk/gfwlist.txt" parameters:nil success:^(AFHTTPRequestOperation *operation, id responseObject) {
+    [manager GET:[self gfwlistURLString] parameters:nil progress:nil success:^(NSURLSessionTask *task, id responseObject) {
         // Objective-C is bullshit
         NSData *data = responseObject;
         NSString *str = [[NSString alloc] initWithData:data encoding:NSUTF8StringEncoding];
-        NSData *data2 = [[NSData alloc] initWithBase64Encoding:str];
+        // NSData *data2 = [[NSData alloc] initWithBase64Encoding:str];
+        NSData *data2 = [[NSData alloc] initWithBase64EncodedString:str options:NSDataBase64DecodingIgnoreUnknownCharacters];
         if (!data2) {
             NSLog(@"can't decode base64 string");
             return;
@@ -500,7 +630,7 @@ void onPACChange(
         NSAlert *alert = [[NSAlert alloc] init];
         alert.messageText = @"Updated";
         [alert runModal];
-    } failure:^(AFHTTPRequestOperation *operation, NSError *error) {
+    } failure:^(NSURLSessionTask *operation, NSError *error) {
         NSLog(@"Error: %@", error);
         NSAlert *alert = [NSAlert alertWithError:error];
         [alert runModal];
